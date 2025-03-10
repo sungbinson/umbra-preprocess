@@ -1,0 +1,2 @@
+# This file exists to keep the water-polygon directory in Git
+# while ignoring the actual polygon data files which are too large for Git 

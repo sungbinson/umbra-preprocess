@@ -1,0 +1,8 @@
+# Ignore water-polygon contents but keep the directory
+/water-polygon/*
+!water-polygon/.gitkeep
+
+# Ignore Python cache files
+preprocess/__pycache__/
+*.py[cod]
+*$py.class
