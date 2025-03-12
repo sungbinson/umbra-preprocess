@@ -44,18 +44,44 @@ def preprocess_raster_data(data):
             min_val, max_val = np.percentile(band, [2, 98])
             rgb[:, :, i] = np.clip(255 * (band - min_val) / (max_val - min_val), 0, 255).astype(np.uint8)
         return rgb
+    
     elif data.shape[0] == 1:  # Single band image
         band = data[0]
         min_val, max_val = np.percentile(band, [2, 98])
         return data[0]
-        # return np.clip(255 * (band - min_val) / (max_val - min_val), 0, 255).astype(np.uint8)
+        #return np.clip(255 * (band - min_val) / (max_val - min_val), 0, 255).astype(np.uint8)
+    
     else:
         print(f"Unsupported number of bands: {data.shape[0]}")
         return data
 
+def preprocess_with_global_stats(data, global_min_vals, global_max_vals):
+    """Preprocess raster data using global min/max statistics for consistent normalization"""
+    if data.shape[0] == 3:  # RGB image
+        rgb = np.zeros((data.shape[1], data.shape[2], 3), dtype=np.uint8)
+        for i in range(3):
+            band = data[i]
+            min_val, max_val = global_min_vals[i], global_max_vals[i]
+            rgb[:, :, i] = np.clip(255 * (band - min_val) / (max_val - min_val), 0, 255).astype(np.uint8)
+        return rgb
+    elif data.shape[0] == 1:  # Single band image
+        band = data[0]
+        min_val, max_val = global_min_vals[0], global_max_vals[0]
+        return np.clip(255 * (band - min_val) / (max_val - min_val), 0, 255).astype(np.uint8)
+    else:
+        print(f"Unsupported number of bands: {data.shape[0]}")
+        return data
 
-def save_raster_image(raster_data, output_path, save_as_png=True, downsample_factor=1):
-    """Save raster data as PNG or GeoTIFF with preprocessing"""
+def save_raster_image(raster_data, output_path, save_as_png=True, downsample_factor=1, global_stats=None):
+    """Save raster data as PNG or GeoTIFF with preprocessing
+    
+    Args:
+        raster_data: Tuple of (data, profile) or path to raster file
+        output_path: Path to save the output file
+        save_as_png: Whether to save as PNG (True) or GeoTIFF (False)
+        downsample_factor: Factor to downsample the image by
+        global_stats: Optional tuple of (global_min_vals, global_max_vals) for consistent normalization
+    """
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     
     # Get the data and profile
@@ -98,7 +124,11 @@ def save_raster_image(raster_data, output_path, save_as_png=True, downsample_fac
         })
     
     # Preprocess the data for better visualization
-    processed_data = preprocess_raster_data(data)
+    if global_stats is not None:
+        global_min_vals, global_max_vals = global_stats
+        processed_data = preprocess_with_global_stats(data, global_min_vals, global_max_vals)
+    else:
+        processed_data = preprocess_raster_data(data)
     
     if save_as_png:
         # Save as PNG
@@ -272,8 +302,21 @@ def process_single_raster(raster_src, water_polygon_path, output_mask_path=None,
 
 def process_raster_in_patches(raster_src, water_polygon_path, output_dir, 
                              patch_size=512, patch_overlap=0, 
-                             min_water_ratio=0.05, max_water_ratio=0.95, save_as_png=False):
-    """Process a raster image in patches, saving only patches with sufficient water coverage"""
+                             min_water_ratio=0.05, max_water_ratio=0.95, save_as_png=False,
+                             use_global_normalization=False):
+    """Process a raster image in patches, saving only patches with sufficient water coverage
+    
+    Args:
+        raster_src: Path to raster file or open rasterio dataset
+        water_polygon_path: Path to water polygon shapefile
+        output_dir: Directory to save output files
+        patch_size: Size of patches to extract
+        patch_overlap: Overlap between adjacent patches
+        min_water_ratio: Minimum ratio of water pixels to keep patch
+        max_water_ratio: Maximum ratio of water pixels to keep patch
+        save_as_png: Whether to save as PNG (True) or GeoTIFF (False)
+        use_global_normalization: Whether to use global image statistics for normalization
+    """
     # Open raster source
     close_src = False
     if isinstance(raster_src, str):
@@ -320,6 +363,26 @@ def process_raster_in_patches(raster_src, water_polygon_path, output_dir,
         n_cols = (width - patch_overlap) // effective_patch_size + (1 if (width - patch_overlap) % effective_patch_size > 0 else 0)
         
         print(f"Processing {raster_name} in {n_rows}x{n_cols} = {n_rows*n_cols} patches (size: {patch_size}x{patch_size}, overlap: {patch_overlap})")
+        
+        # Calculate global statistics for normalization if requested
+        global_stats = None
+        if use_global_normalization:
+            print("Calculating global statistics for normalization...")
+            # Read the entire raster data
+            full_data = src.read()
+            bands = full_data.shape[0]
+            
+            global_min_vals = []
+            global_max_vals = []
+            
+            for i in range(bands):
+                min_val, max_val = np.percentile(full_data[i], [2, 98])
+                global_min_vals.append(min_val)
+                global_max_vals.append(max_val)
+            
+            global_stats = (global_min_vals, global_max_vals)
+            print(f"Global min values: {global_min_vals}")
+            print(f"Global max values: {global_max_vals}")
         
         # Process each patch
         total_patches = 0
@@ -381,7 +444,7 @@ def process_raster_in_patches(raster_src, water_polygon_path, output_dir,
                     patch_raster_path = os.path.join(rasters_dir, f"{patch_id}.tif")
                     save_raster_image(
                         (patch_data, patch_profile), patch_raster_path,
-                        save_as_png, downsample_factor=1
+                        save_as_png, downsample_factor=1, global_stats=global_stats
                     )
                     current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     print(f"[{current_time}] ✅ Saved patch {patch_id} (water ratio: {patch_water_ratio*100:.2f}%)")

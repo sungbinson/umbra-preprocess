@@ -150,7 +150,8 @@ def process_umbra_data(
                         patch_overlap=patch_overlap,
                         min_water_ratio=min_water_ratio,
                         max_water_ratio=max_water_ratio,
-                        save_as_png=save_as_png
+                        save_as_png=save_as_png,
+                        use_global_normalization=False,
                     )
                     total_patches += file_total_patches
                     saved_patches += file_saved_patches
@@ -170,12 +171,12 @@ def process_umbra_data(
             
             count += 1
             if use_patches:
-                logger.info(f"Processed {count}/{len(objects)} files, saved {saved_patches} out of {total_patches} patches")
+                logger.info(f"  Processed {count}/{len(objects)} files, saved {saved_patches} out of {total_patches} patches")
             else:
-                logger.info(f"Processed {count}/{len(objects)} files")
+                logger.info(f"  Processed {count}/{len(objects)} files")
         
         except Exception as e:
-            logger.error(f"Error processing {s3_url}: {e}")
+            logger.error(f"  Error processing {s3_url}: {e}")
             import traceback
             traceback.print_exc()
     
@@ -198,11 +199,11 @@ def parse_arguments():
     parser.add_argument('--water-polygon', type=str, 
                         default='water-polygon/water_polygons.shp',
                         help='Path to water polygon shapefile')
-    parser.add_argument('--output-dir', type=str, default='/home/ssb/PROJECT/UMBRACoast',
+    parser.add_argument('--output-dir', type=str, default='/home/ssb/DATASET/UmbraCoast',
                         help='Directory to save output files')
     
     # Processing options
-    parser.add_argument('--min-water-ratio', type=float, default=0.05,
+    parser.add_argument('--min-water-ratio', type=float, default=0.7,
                         help='Minimum water ratio threshold (0.0-1.0) to save files')
     parser.add_argument('--max-water-ratio', type=float, default=0.95,
                         help='Maximum water ratio threshold (0.0-1.0) to save files')

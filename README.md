@@ -59,3 +59,20 @@ For more options, run with `--help`.
 
 - UMBRA SAR Data: From [UMBRA open data catalog](http://umbra-open-data-catalog.s3-website.us-west-2.amazonaws.com/) (AWS S3)
 - Water Polygons: From [OpenStreetMap](https://osmdata.openstreetmap.de/data/water-polygons.html) (ODbL license)
+
+## Image Comparison GUI
+
+A GUI tool to visually compare paired mask and raster images, display metadata coordinates, and manage images easily.
+
+### Usage
+```bash
+python preprocess/umbra_gui.py
+```
+
+### Features
+- Navigate images using left/right arrow keys.
+- Delete unwanted image pairs.
+- Display and copy coordinates from metadata files.
+
+### Requirements
+- Python packages: tkinter, pillow, json
